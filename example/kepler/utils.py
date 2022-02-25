@@ -91,8 +91,8 @@ def refine(M, ecc, ome, E):
     return E + dE
 
 
-def rv_model(kepler_params, t):
-    v0, log_s2, log_period, log_k, sin_phi, cos_phi, ecc, sin_w, cos_w = kepler_params
+def rv_model(kepler_params_, t):
+    v0, log_s2, log_period, log_k, sin_phi, cos_phi, ecc, sin_w, cos_w = kepler_params_
     phi = jnp.arctan2(sin_phi, cos_phi)
     sin_f, cos_f = kepler(2 * np.pi * t * jnp.exp(-log_period) + phi, ecc)
     return v0 + jnp.exp(log_k) * (cos_w * cos_f - sin_w * sin_f + ecc * cos_w)
@@ -165,18 +165,18 @@ def sample_prior(rng_key, n_samples, ecc_alpha=2, ecc_beta=2,
     returns kepler_params
     """
     rng_key, sub_key = jax.random.split(rng_key)
-    v0 = jax.random.normal(sub_key, (n_samples,)) * np.sqrt(v0_var) + v0_mean
+    v0 = jax.random.normal(sub_key, (n_samples,)) * jnp.sqrt(v0_var) + v0_mean
     
     rng_key, sub_key = jax.random.split(rng_key)
-    log_s2 = jax.random.normal(sub_key, (n_samples,)) * np.sqrt(log_s2_var)
+    log_s2 = jax.random.normal(sub_key, (n_samples,)) * jnp.sqrt(log_s2_var)
     log_s2 += log_s2_mean
     
     rng_key, sub_key = jax.random.split(rng_key)
-    log_k = jax.random.normal(sub_key, (n_samples,)) * np.sqrt(log_k_var)
+    log_k = jax.random.normal(sub_key, (n_samples,)) * jnp.sqrt(log_k_var)
     log_k += log_k_mean
     
     rng_key, sub_key = jax.random.split(rng_key)
-    log_period = jax.random.normal(sub_key, (n_samples,)) * np.sqrt(log_period_var)
+    log_period = jax.random.normal(sub_key, (n_samples,)) * jnp.sqrt(log_period_var)
     log_period += log_period_mean
     
     rng_key, sub_key = jax.random.split(rng_key)

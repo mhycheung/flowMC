@@ -13,9 +13,10 @@ from nfsampler.sampler.MALA import mala_sampler
 from nfsampler.sampler.NF_proposal import nf_metropolis_sampler
 from nfsampler.nfmodel.utils import *
 
-from utils import rv_model, log_likelihood, log_prior, sample_prior
+from utils import rv_model, log_likelihood, log_prior, sample_prior, get_kepler_params_and_log_jac
 
 jax.config.update("jax_enable_x64", True)
+# jax.config.update('jax_disable_jit', True)
 
 ## Generate probelm
 true_params = jnp.array([
@@ -29,6 +30,14 @@ true_params = jnp.array([
     np.sin(-0.7), # w
     np.cos(-0.7)
 ])
+prior_kwargs = {
+    'ecc_alpha': 2, 'ecc_beta': 2,
+    'log_k_mean': 1, 'log_k_var': 1,
+    'v0_mean': 10, 'v0_var': 2,
+    'log_period_mean': 2, 'log_period_var': 1,
+    'log_s2_mean': 0, 'log_s2_var': 1,
+}
+true_params = sample_prior(jax.random.PRNGKey(1), 1, **prior_kwargs)
 
 random = np.random.default_rng(12345)
 t = np.sort(random.uniform(0, 100, 50))
@@ -40,13 +49,6 @@ x = np.linspace(0, 100, 500)
 plt.plot(x, rv_model(true_params, x), "C0")
 plt.show(block=False)
 
-prior_kwargs = {
-    'ecc_alpha': 2, 'ecc_beta': 2,
-    'log_k_mean': 1, 'log_k_var': 1,
-    'v0_mean': 10, 'v0_var': 2,
-    'log_period_mean': 2, 'log_period_var': 1,
-    'log_s2_mean': 0, 'log_s2_var': 1,
-}
 
 
 ## Setting up sampling -- takes one input at the time.
@@ -58,14 +60,14 @@ def log_posterior(x):
 d_log_posterior = jax.grad(log_posterior)
 
 n_dim = 9
-n_samples = 20
+n_samples = 100
 nf_samples = 100
 n_chains = 100
-n_layer = 10
+n_layer = 3
 n_hidden = 64
 learning_rate = 0.01
 momentum = 0.9
-num_epochs = 3
+num_epochs = 5
 batch_size = 100
 n_iter = 10
 
@@ -138,34 +140,35 @@ plt.plot(chains[0,:,0],chains[0,:,1])
 plt.show(block=False)
 
 
-# Plot all chains
-plt.figure()
-corner.corner(chains.reshape(-1,n_dim),
+# Example code from corner to overplot - put true params
+# This is the true mean of the second mode that we used above:
+value1 = true_params
+# Make the base corner plot
+figure = corner.corner(chains.reshape(-1,n_dim),
                 labels=['v0', 'log_s2', 'log_period', 'log_k', 'sin_phi_', 'cos_phi_', 'ecc_', 'sin_w_', 'cos_w_'])
+figure.set_size_inches(7, 7)
 
-## Example code from corner to overplot - put true params
-# # This is the true mean of the second mode that we used above:
-# value1 = mean
-# # This is the empirical mean of the sample:
-# value2 = np.mean(samples, axis=0)
-# # Make the base corner plot
-# figure = corner.corner(samples)
-# # Extract the axes
-# axes = np.array(figure.axes).reshape((ndim, ndim))
-# # Loop over the diagonal
-# for i in range(ndim):
-#     ax = axes[i, i]
-#     ax.axvline(value1[i], color="g")
-#     ax.axvline(value2[i], color="r")
-# # Loop over the histograms
-# for yi in range(ndim):
-#     for xi in range(yi):
-#         ax = axes[yi, xi]
-#         ax.axvline(value1[xi], color="g")
-#         ax.axvline(value2[xi], color="r")
-#         ax.axhline(value1[yi], color="g")
-#         ax.axhline(value2[yi], color="r")
-#         ax.plot(value1[xi], value1[yi], "sg")
-#         ax.plot(value2[xi], value2[yi], "sr")
+# Extract the axes
+axes = np.array(figure.axes).reshape((n_dim, n_dim))
+# Loop over the diagonal
+for i in range(n_dim):
+    ax = axes[i, i]
+    ax.axvline(value1[i], color="g")
+# Loop over the histograms
+for yi in range(n_dim):
+    for xi in range(yi):
+        ax = axes[yi, xi]
+        ax.axvline(value1[xi], color="g")
+        ax.axhline(value1[yi], color="g")
+        ax.plot(value1[xi], value1[yi], "sg")
+        ax.plot(chains[0, -1000:, xi],chains[0, -1000:, yi])
 
+plt.show(block=False)
+
+plt.figure()
+plt.plot(t, rv_obs, ".k")
+x = np.linspace(0, 100, 500)
+plt.plot(x, rv_model(true_params, x), "C0")
+params, log_jac = get_kepler_params_and_log_jac(chains[0,0, :])
+plt.plot(x, rv_model(params, x), c='gray')
 plt.show(block=False)
