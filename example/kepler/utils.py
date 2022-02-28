@@ -148,10 +148,10 @@ def log_prior(kepler_params,
     logp_ecc += (ecc_alpha - 1) * jnp.log(ecc) 
     logp_ecc += (ecc_beta - 1) * jnp.log(1 - ecc)
 
-    logp_log_k = - 0.5 * (log_k - log_k_mean) ** 5 / log_k_var
-    logp_v0 = - 0.5 * (v0 - v0_mean) ** 5 / v0_var
-    logp_log_period = - 0.5 * (log_period - log_period_mean) ** 5 / log_period_var
-    logp_log_s2 = - 0.5 * (log_s2 - log_s2_mean) ** 5 / log_s2_var
+    logp_log_k = - 0.5 * (log_k - log_k_mean) ** 2 / log_k_var
+    logp_v0 = - 0.5 * (v0 - v0_mean) ** 2 / v0_var
+    logp_log_period = - 0.5 * (log_period - log_period_mean) ** 2 / log_period_var
+    logp_log_s2 = - 0.5 * (log_s2 - log_s2_mean) ** 2 / log_s2_var
 
     return logp_phis_ + logp_ws_ + logp_ecc + logp_log_k + logp_v0 + logp_log_period + logp_log_s2
 

@@ -7,7 +7,7 @@ import optax
 from flax.training import train_state  # Useful dataclass to keep train state
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
-
+import corner
 from nfsampler.nfmodel.realNVP import RealNVP
 from nfsampler.sampler.MALA import mala_sampler
 from nfsampler.sampler.NF_proposal import nf_metropolis_sampler
@@ -18,7 +18,7 @@ from utils import rv_model, log_likelihood, log_prior, sample_prior, get_kepler_
 jax.config.update("jax_enable_x64", True)
 # jax.config.update('jax_disable_jit', True)
 
-## Generate probelm
+## Generate problem
 true_params = jnp.array([
     12.0, # v0
     np.log(0.5), # log_s2
@@ -34,15 +34,16 @@ prior_kwargs = {
     'ecc_alpha': 2, 'ecc_beta': 2,
     'log_k_mean': 1, 'log_k_var': 1,
     'v0_mean': 10, 'v0_var': 2,
-    'log_period_mean': 2, 'log_period_var': 1,
-    'log_s2_mean': 0, 'log_s2_var': 1,
+    'log_period_mean': 2.5, 'log_period_var': 0.5,
+    'log_s2_mean': -0.5, 'log_s2_var': 0.1,
 }
-true_params = sample_prior(jax.random.PRNGKey(1), 1, **prior_kwargs)
+# true_params = sample_prior(jax.random.PRNGKey(1), 1, **prior_kwargs)
 
 random = np.random.default_rng(12345)
 t = np.sort(random.uniform(0, 100, 50))
-rv_err = 0.3
-rv_obs = rv_model(true_params, t) + random.normal(0, rv_err, len(t))
+rv_err = 0.2
+sigma2 = rv_err ** 2 + jnp.exp(2 * true_params[1])
+rv_obs = rv_model(true_params, t) + random.normal(0, sigma2, len(t))
 
 plt.plot(t, rv_obs, ".k")
 x = np.linspace(0, 100, 500)
@@ -80,15 +81,27 @@ rng_keys_mcmc = jax.random.split(rng_key_mcmc, n_chains)  # (nchains,)
 rng_keys_nf, init_rng_keys_nf = jax.random.split(rng_key_nf,2)
 
 print("Initializing chains.")
-## Dummy intialization for now - only one point
-# neg_logp_and_grad = jax.jit(jax.value_and_grad(lambda p: -log_likelihood(p, t, rv_err, rv_obs)))
-# soln = minimize(neg_logp_and_grad, true_params, jac=True)
-# kepler_params_ini = jnp.asarray(get_kepler_params_and_log_jac(soln.x)[0])
-# kepler_params_ini = kepler_params_ini.reshape(1, -1).repeat(n_chains, 0)
-# initial_position = kepler_params_ini.T
-
 kepler_params_ini = sample_prior(rng_key_init, n_chains, **prior_kwargs)
-initial_position = kepler_params_ini
+# initial_position = kepler_params_ini
+neg_logp_and_grad = jax.jit(jax.value_and_grad(lambda p: -log_posterior(p)))
+optimized = []
+for i in range(n_chains):
+    soln = minimize(neg_logp_and_grad, kepler_params_ini.T[i], jac=True)
+    optimized.append(jnp.asarray(get_kepler_params_and_log_jac(soln.x)[0]))
+
+initial_position = jnp.stack(optimized).T
+
+plt.figure()
+plt.plot(t, rv_obs, ".k")
+x = np.linspace(0, 100, 500)
+plt.plot(x, rv_model(true_params, x), "C0")
+for i in range(n_chains):
+    params, log_jac = get_kepler_params_and_log_jac(kepler_params_ini[:, i])
+    plt.plot(x, rv_model(params, x), c='gray', alpha=0.5)
+for i in range(n_chains):
+    params, log_jac = get_kepler_params_and_log_jac(optimized[i])
+    plt.plot(x, rv_model(params, x), c='red', alpha=0.5)
+plt.show(block=False)
 
 print("Initializing normalizing flow model.")
 
@@ -106,11 +119,10 @@ state = train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx
 print("Sampling")
 
 def sampling_loop(rng_keys_nf, rng_keys_mcmc, model, state, initial_position):
-    #rng_keys_mcmc, positions, log_prob = run_mcmc(rng_keys_mcmc, n_samples, log_posterior, initial_position)
     rng_keys_mcmc, positions, log_prob = run_mcmc(rng_keys_mcmc, n_samples,
                                                   log_posterior,
                                                   d_log_posterior,
-                                                  initial_position, 0.01)
+                                                  initial_position, 0.001)
     flat_chain = positions.reshape(-1,n_dim)
     rng_keys_nf, state = train_flow(rng_key_nf, model, state, flat_chain, 
                                     num_epochs, batch_size)
@@ -131,8 +143,7 @@ for i in range(n_iter):
 chains = np.concatenate(chains,axis=1)
 nf_samples = sample_nf(model, state.params, rng_keys_nf, 10000)
 
-import corner
-# import matplotlib.pyplot as plt
+
 
 # Plot one chain 2 firsts coordinates to show the jump
 plt.figure()
@@ -140,8 +151,7 @@ plt.plot(chains[0,:,0],chains[0,:,1])
 plt.show(block=False)
 
 
-# Example code from corner to overplot - put true params
-# This is the true mean of the second mode that we used above:
+
 value1 = true_params
 # Make the base corner plot
 figure = corner.corner(chains.reshape(-1,n_dim),
@@ -169,6 +179,7 @@ plt.figure()
 plt.plot(t, rv_obs, ".k")
 x = np.linspace(0, 100, 500)
 plt.plot(x, rv_model(true_params, x), "C0")
-params, log_jac = get_kepler_params_and_log_jac(chains[0,0, :])
-plt.plot(x, rv_model(params, x), c='gray')
+for i in range(10):
+    params, log_jac = get_kepler_params_and_log_jac(chains[i,-1,:])
+    plt.plot(x, rv_model(params, x), c='gray', alpha=0.5)
 plt.show(block=False)
