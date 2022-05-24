@@ -190,15 +190,3 @@ def sample_prior(rng_key, n_samples, ecc_alpha=2, ecc_beta=2,
 
     return jnp.stack(kepler_params) # shape = (9, n_samples)
 
-
-
-# def random_init():
-#     """
-#     sample according to priors + run optim.
-#     v0, log_s2, log_period, log_k, sin_phi_, cos_phi_, ecc_, sin_w_, cos_w_
-#     """
-#     jnp.array([
-#     12.0, np.log(0.5), np.log(14.5), np.log(2.3), 
-#     np.sin(1.5), np.cos(1.5), 0.4, np.sin(-0.7), np.cos(-0.7)
-#     ])
-
