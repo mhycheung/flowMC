@@ -57,15 +57,15 @@ d_log_posterior = jax.grad(log_posterior)
 
 config = {}
 n_dim = 9
-n_loop = 2
-n_local_steps = 5
-n_global_steps = 2
-n_chains = 5
+n_loop = 1
+n_local_steps = 250
+n_global_steps = 1
+n_chains = 50
 learning_rate = 0.01
 momentum = 0.9
-num_epochs = 5
+num_epochs = 1
 batch_size = 10
-stepsize = 1e-3
+stepsize = 1e-5
 logging = True
 
 print("Preparing RNG keys")
@@ -151,13 +151,17 @@ for yi in range(n_dim):
 # plt.tight_layout()
 plt.show(block=False)
 
-plt.figure(figsize=(10,5))
-axs = [plt.subplot(121), plt.subplot(122)]
+plt.figure(figsize=(10,8))
+axs = [plt.subplot(221), plt.subplot(222), plt.subplot(223), plt.subplot(224)]
 plt.sca(axs[0])
 plt.plot(t, rv_obs, ".k", label='observations')
 x = np.linspace(0, 100, 500)
 plt.plot(x, rv_model(true_params, x), "C0", label='ground truth')
-for i in range(np.minimum(n_chains,10)):
+
+chains_indx = np.random.choice(range(n_chains),
+                               size=(np.minimum(n_chains,10),),
+                               replace=False)
+for i in chains_indx:
     params, log_jac = get_kepler_params_and_log_jac(chains[i,-1,:])
     if i == 0:
         plt.plot(x, rv_model(params, x), c='gray', alpha=0.5, label='final samples')
@@ -175,6 +179,20 @@ plt.yscale('log')
 plt.ylabel('walker negative log-likelihood')
 plt.xlabel('iteration')
 
+plt.sca(axs[2])
+plt.plot(loss_vals)
+plt.ylabel('Loss NF')
+plt.xlabel('iteration')
+plt.tight_layout()
+plt.show(block=False)
+
+plt.sca(axs[3])
+plt.plot(local_accs.mean(0), label='local sampler')
+plt.plot(global_accs.mean(0), label='global sampler')
+plt.ylabel('Instantaneous acceptance rate')
+plt.xlabel('iteration')
+plt.legend()
+plt.tight_layout()
 plt.show(block=False)
 
 value1 = true_params
