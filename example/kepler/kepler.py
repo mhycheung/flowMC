@@ -31,13 +31,21 @@ true_params = jnp.array([
     np.sin(-0.7), # w
     np.cos(-0.7)
 ])
-prior_kwargs = {
+# prior_kwargs = { ## peaked
+#     'ecc_alpha': 2, 'ecc_beta': 2,
+#     'log_k_mean': 1, 'log_k_var': 1,
+#     'v0_mean': 10, 'v0_var': 2,
+#     'log_period_mean': 2.5, 'log_period_var': 0.5,
+#     'log_s2_mean': -0.5, 'log_s2_var': 0.1,
+# }
+prior_kwargs = { ## flatter
     'ecc_alpha': 2, 'ecc_beta': 2,
-    'log_k_mean': 1, 'log_k_var': 1,
-    'v0_mean': 10, 'v0_var': 2,
-    'log_period_mean': 2.5, 'log_period_var': 0.5,
+    'log_k_mean': 1, 'log_k_var': 5,
+    'v0_mean': 10, 'v0_var': 10,
+    'log_period_mean': 1, 'log_period_var': 5,
     'log_s2_mean': -0.5, 'log_s2_var': 0.1,
 }
+
 
 random = np.random.default_rng(12345)
 t = np.sort(random.uniform(0, 100, 50))
@@ -57,13 +65,13 @@ d_log_posterior = jax.grad(log_posterior)
 
 config = {}
 n_dim = 9
-n_loop = 1
-n_local_steps = 250
-n_global_steps = 1
+n_loop = 50
+n_local_steps = 25
+n_global_steps = 5
 n_chains = 50
 learning_rate = 0.01
 momentum = 0.9
-num_epochs = 1
+num_epochs = 10
 batch_size = 10
 stepsize = 1e-5
 logging = True
@@ -161,9 +169,9 @@ plt.plot(x, rv_model(true_params, x), "C0", label='ground truth')
 chains_indx = np.random.choice(range(n_chains),
                                size=(np.minimum(n_chains,10),),
                                replace=False)
-for i in chains_indx:
+for id,i in enumerate(chains_indx):
     params, log_jac = get_kepler_params_and_log_jac(chains[i,-1,:])
-    if i == 0:
+    if id == 0:
         plt.plot(x, rv_model(params, x), c='gray', alpha=0.5, label='final samples')
     else:
         plt.plot(x, rv_model(params, x), c='gray', alpha=0.5)
