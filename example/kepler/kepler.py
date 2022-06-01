@@ -1,8 +1,14 @@
+import matplotlib as mpl
+label_size = 8
+mpl.rcParams['xtick.labelsize'] = label_size 
+mpl.rcParams['ytick.labelsize'] = label_size 
+
 import jax
 import jax.numpy as jnp                # JAX NumPy
 from jax.scipy.special import logsumexp
 import numpy as np  
 import matplotlib.pyplot as plt
+
 from scipy.optimize import minimize
 import corner
 import tqdm
@@ -12,10 +18,11 @@ import pickle
 from nfsampler.nfmodel.realNVP import RealNVP
 from nfsampler.sampler.MALA import mala_sampler
 from nfsampler.nfmodel.utils import *
-
-from utils import rv_model, log_likelihood, log_prior, sample_prior, get_kepler_params_and_log_jac
 from nfsampler.sampler.Sampler import Sampler
 from nfsampler.utils.PRNG_keys import initialize_rng_keys
+
+from utils import rv_model, log_likelihood, log_prior, sample_prior, get_kepler_params_and_log_jac
+from plot import draw_corner, draw_kepler_results
 
 jax.config.update("jax_enable_x64", True)
 
@@ -46,9 +53,10 @@ prior_kwargs = { ## flatter
     'log_s2_mean': -0.5, 'log_s2_var': 0.1,
 }
 
+n_obs = 17
 
 random = np.random.default_rng(12345)
-t = np.sort(random.uniform(0, 100, 50))
+t = np.sort(random.uniform(0, 100, n_obs))
 rv_err = 0.3
 sigma2 = rv_err ** 2 + jnp.exp(2 * true_params[1])
 rv_obs = rv_model(true_params, t) + random.normal(0, sigma2, len(t))
@@ -65,16 +73,23 @@ d_log_posterior = jax.grad(log_posterior)
 
 config = {}
 n_dim = 9
-n_loop = 50
+n_chains = 50
+
+## long run
+n_loop = 100
 n_local_steps = 25
 n_global_steps = 5
-n_chains = 50
+num_epochs = 10
+## short run
+# n_loop = 5
+# n_local_steps = 10
+# n_global_steps = 5
+# num_epochs = 5
+
 learning_rate = 0.01
 momentum = 0.9
-num_epochs = 10
-batch_size = 10
+batch_size = n_chains
 stepsize = 1e-5
-logging = True
 
 print("Preparing RNG keys")
 rng_key_set = initialize_rng_keys(n_chains,seed=42)
@@ -92,6 +107,9 @@ for i in tqdm.tqdm(range(n_chains)):
     optimized.append(jnp.asarray(get_kepler_params_and_log_jac(soln.x)[0]))
 
 initial_position = jnp.stack(optimized) #(n_chains, n_dim)
+#planting initial position
+print('planting initial position')
+inital_position = initial_position.at[0,:].set(true_params)
 # initial_position = kepler_params_ini.T
 
 mean = initial_position.mean(0)
@@ -128,105 +146,8 @@ chains, nf_samples, local_accs, global_accs, loss_vals = _
 
 print('Elapsed: ', time.time()-start, 's')
 
-print("Make plots")
-
 chains = np.array(chains)
 nf_samples = np.array(nf_samples)
-
-value1 = true_params
-n_dim = n_dim
-# Make the base corner plot
-
-figure = corner.corner(chains.reshape(-1,n_dim),
-                labels=['v0', 'log_s2', 'log_period', 'log_k', 'sin_phi_', 'cos_phi_', 'ecc_', 'sin_w_', 'cos_w_'], title_kwargs={"fontsize": 12})
-figure.set_size_inches(7, 7)
-figure.suptitle('Visualize chains')
-# Extract the axes
-axes = np.array(figure.axes).reshape((n_dim, n_dim))
-# Loop over the diagonal
-for i in range(n_dim):
-    ax = axes[i, i]
-    ax.axvline(value1[i], color="g")
-# Loop over the histograms
-for yi in range(n_dim):
-    for xi in range(yi):
-        ax = axes[yi, xi]
-        ax.plot(value1[xi], value1[yi], "sg")
-        ax.plot(chains[1, -1000:, xi],chains[1, -1000:, yi], alpha=0.75, lw=0.75)
-        ax.plot(chains[0, -1000:, xi],chains[0, -1000:, yi], alpha=0.75, lw=0.75)
-        ax.axvline(value1[xi], color="g")
-        ax.axhline(value1[yi], color="g")
-# plt.tight_layout()
-plt.show(block=False)
-
-plt.figure(figsize=(10,8))
-axs = [plt.subplot(221), plt.subplot(222), plt.subplot(223), plt.subplot(224)]
-plt.sca(axs[0])
-plt.plot(t, rv_obs, ".k", label='observations')
-x = np.linspace(0, 100, 500)
-plt.plot(x, rv_model(true_params, x), "C0", label='ground truth')
-
-chains_indx = np.random.choice(range(n_chains),
-                               size=(np.minimum(n_chains,10),),
-                               replace=False)
-for id,i in enumerate(chains_indx):
-    params, log_jac = get_kepler_params_and_log_jac(chains[i,-1,:])
-    if id == 0:
-        plt.plot(x, rv_model(params, x), c='gray', alpha=0.5, label='final samples')
-    else:
-        plt.plot(x, rv_model(params, x), c='gray', alpha=0.5)
-plt.xlabel('t')
-plt.ylabel('radial velocity')
-plt.legend()
-
-plt.sca(axs[1])
-posterior_evolution = jax.vmap(log_posterior)(chains[-10:,:,:].reshape(-1, 9)).reshape(10, -1)
-shift = max(jnp.max(posterior_evolution),0)
-plt.plot(- (posterior_evolution.T - shift))
-plt.yscale('log')
-plt.ylabel('walker negative log-likelihood')
-plt.xlabel('iteration')
-
-plt.sca(axs[2])
-plt.plot(loss_vals)
-plt.ylabel('Loss NF')
-plt.xlabel('iteration')
-plt.tight_layout()
-plt.show(block=False)
-
-plt.sca(axs[3])
-plt.plot(local_accs.mean(0), label='local sampler')
-plt.plot(global_accs.mean(0), label='global sampler')
-plt.ylabel('Instantaneous acceptance rate')
-plt.xlabel('iteration')
-plt.legend()
-plt.tight_layout()
-plt.show(block=False)
-
-value1 = true_params
-n_dim = n_dim
-# Make the base corner plot
-figure = corner.corner(chains.reshape(-1,n_dim),
-                labels=['v0', 'log_s2', 'log_period', 'log_k', 'sin_phi_', 'cos_phi_', 'ecc_', 'sin_w_', 'cos_w_'], title_kwargs={"fontsize": 12})
-figure.set_size_inches(7, 7)
-figure.suptitle('Visualize initializations')
-# Extract the axes
-axes = np.array(figure.axes).reshape((n_dim, n_dim))
-# Loop over the diagonal
-for i in range(n_dim):
-    ax = axes[i, i]
-    ax.axvline(value1[i], color="g")
-# Loop over the histograms
-for yi in range(n_dim):
-    for xi in range(yi):
-        ax = axes[yi, xi]
-        ax.plot(value1[xi], value1[yi], "sg")
-        ax.plot(initial_position[:,xi], initial_position[:,yi],'+',ms=2)
-        ax.axvline(value1[xi], color="g")
-        ax.axhline(value1[yi], color="g")
-# plt.tight_layout()
-plt.show(block=False)
-
 
 results = {
     'chains': chains,
@@ -235,12 +156,60 @@ results = {
     'optimized_init': initial_position,
     'config': config,
     'true_params': true_params,
+    'n_obs': n_obs,
     'rv_obs': rv_obs,
     't': t,
     'prior_kwargs': prior_kwargs,
-    'rv_err': rv_err
+    'rv_err': rv_err,
+    'local_accs': local_accs,
+    'global_accs': global_accs,
+    'loss_vals': loss_vals
 }
 
 random_id = np.random.randint(10000)
 with open('results_{:d}.pkl'.format(random_id), 'wb') as f:
     pickle.dump(results, f)
+print("Saved with random id: {:d}".format(random_id))
+
+print("Make plots")
+
+
+# Make the base corner plot
+labels = ['v0', 'log_s2', 'log_period', 'log_k', 'sin_phi_',
+                            'cos_phi_', 'ecc_', 'sin_w_', 'cos_w_']
+fig_corner = draw_corner(chains, true_params, labels, labelpad=0.3)
+
+fig_results = draw_kepler_results(chains, true_params, t, rv_obs, loss_vals,
+                                  rv_model, log_posterior, get_kepler_params_and_log_jac)
+
+
+
+
+# value1 = true_params
+# n_dim = n_dim
+# # Make the base corner plot
+# figure = corner.corner(chains.reshape(-1,n_dim),
+#                 labels=['v0', 'log_s2', 'log_period', 'log_k', 'sin_phi_', 'cos_phi_', 'ecc_', 'sin_w_', 'cos_w_'], title_kwargs={"fontsize": 12})
+# figure.set_size_inches(7, 7)
+# figure.suptitle('Visualize initializations')
+# # Extract the axes
+# axes = np.array(figure.axes).reshape((n_dim, n_dim))
+# # Loop over the diagonal
+# for i in range(n_dim):
+#     ax = axes[i, i]
+#     ax.axvline(value1[i], color="g")
+# # Loop over the histograms
+# for yi in range(n_dim):
+#     for xi in range(yi):
+#         ax = axes[yi, xi]
+#         ax.plot(value1[xi], value1[yi], "sg")
+#         ax.plot(initial_position[:,xi], initial_position[:,yi],'+',ms=2)
+#         ax.axvline(value1[xi], color="g")
+#         ax.axhline(value1[yi], color="g")
+# # plt.tight_layout()
+# plt.show(block=False)
+
+
+
+# with open('results_{:d}.pkl'.format(random_id), 'rb') as f:
+#     results_ = pickle.load(f)
