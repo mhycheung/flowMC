@@ -53,13 +53,19 @@ prior_kwargs = { ## flatter
     'log_s2_mean': -0.5, 'log_s2_var': 0.1,
 }
 
-n_obs = 17
+n_obs = 5
 
 random = np.random.default_rng(12345)
 t = np.sort(random.uniform(0, 100, n_obs))
 rv_err = 0.3
 sigma2 = rv_err ** 2 + jnp.exp(2 * true_params[1])
 rv_obs = rv_model(true_params, t) + random.normal(0, sigma2, len(t))
+
+t = [0., 49.452, 95.393, 127.587, 190.408]
+rv = [38.77, 39.70, 37.45, 38.31, 38.31] 
+err = [0.184, 0.261, 0.112, 0.155, 0.223]
+rv_obs = 
+
 # plt.plot(t, rv_obs, ".k")
 # x = np.linspace(0, 100, 500)
 # plt.plot(x, rv_model(true_params, x), "C0")
