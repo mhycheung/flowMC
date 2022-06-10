@@ -53,7 +53,7 @@ prior_kwargs = { ## flatter
     'log_s2_mean': -0.5, 'log_s2_var': 0.1,
 }
 
-n_obs = 5
+n_obs = 50
 
 random = np.random.default_rng(12345)
 t = np.sort(random.uniform(0, 100, n_obs))
@@ -61,10 +61,6 @@ rv_err = 0.3
 sigma2 = rv_err ** 2 + jnp.exp(2 * true_params[1])
 rv_obs = rv_model(true_params, t) + random.normal(0, sigma2, len(t))
 
-t = [0., 49.452, 95.393, 127.587, 190.408]
-rv = [38.77, 39.70, 37.45, 38.31, 38.31] 
-err = [0.184, 0.261, 0.112, 0.155, 0.223]
-rv_obs = 
 
 # plt.plot(t, rv_obs, ".k")
 # x = np.linspace(0, 100, 500)
@@ -82,10 +78,10 @@ n_dim = 9
 n_chains = 50
 
 ## long run
-n_loop = 100
-n_local_steps = 25
-n_global_steps = 5
-num_epochs = 10
+n_loop = 1
+n_local_steps = 25 
+n_global_steps = 1
+num_epochs = 1
 ## short run
 # n_loop = 5
 # n_local_steps = 10
@@ -106,17 +102,17 @@ print("Initializing MCMC model and normalizing flow model.")
 
 kepler_params_ini = sample_prior(rng_key_set[0], n_chains,
                                  **prior_kwargs)
-neg_logp_and_grad = jax.jit(jax.value_and_grad(lambda p: -log_posterior(p)))
-optimized = []
-for i in tqdm.tqdm(range(n_chains)):
-    soln = minimize(neg_logp_and_grad, kepler_params_ini.T[i].T, jac=True)
-    optimized.append(jnp.asarray(get_kepler_params_and_log_jac(soln.x)[0]))
+# neg_logp_and_grad = jax.jit(jax.value_and_grad(lambda p: -log_posterior(p)))
+# optimized = []
+# for i in tqdm.tqdm(range(n_chains)):
+#     soln = minimize(neg_logp_and_grad, kepler_params_ini.T[i].T, jac=True)
+#     optimized.append(jnp.asarray(get_kepler_params_and_log_jac(soln.x)[0]))
 
-initial_position = jnp.stack(optimized) #(n_chains, n_dim)
-#planting initial position
-print('planting initial position')
-inital_position = initial_position.at[0,:].set(true_params)
-# initial_position = kepler_params_ini.T
+# initial_position = jnp.stack(optimized) #(n_chains, n_dim)
+# #planting initial position
+# print('planting initial position')
+# inital_position = initial_position.at[0,:].set(true_params)
+initial_position = kepler_params_ini.T
 
 mean = initial_position.mean(0)
 init_centered = (initial_position - mean)
@@ -150,6 +146,13 @@ start = time.time()
 _ = nf_sampler.sample(initial_position)
 chains, nf_samples, local_accs, global_accs, loss_vals = _
 
+key, subkey = jax.random.split(rng_key_set[-1])
+n_samples = 100
+nf_samples_ = nf_sampler.nf_model.apply({'params': nf_sampler.state.params},
+                                           subkey, n_samples,
+                                           nf_sampler.state.params,
+                                           method=nf_sampler.nf_model.sample)[0]
+
 print('Elapsed: ', time.time()-start, 's')
 
 chains = np.array(chains)
@@ -158,6 +161,9 @@ nf_samples = np.array(nf_samples)
 results = {
     'chains': chains,
     'nf_samples': nf_samples,
+    'nf_samples_': nf_samples_,
+    # 'nf_model': nf_sampler.nf_model,
+    # 'nf_model_params': nf_sampler.state.params,
     'prior_samples': kepler_params_ini,
     'optimized_init': initial_position,
     'config': config,
@@ -186,7 +192,8 @@ labels = ['v0', 'log_s2', 'log_period', 'log_k', 'sin_phi_',
 fig_corner = draw_corner(chains, true_params, labels, labelpad=0.3)
 
 fig_results = draw_kepler_results(chains, true_params, t, rv_obs, loss_vals,
-                                  rv_model, log_posterior, get_kepler_params_and_log_jac)
+                                  local_accs, global_accs, rv_model, 
+                                  log_posterior, get_kepler_params_and_log_jac)
 
 
 
