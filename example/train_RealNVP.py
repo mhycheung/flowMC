@@ -5,6 +5,7 @@ import jax.numpy as jnp                # JAX NumPy
 import jax.random as random            # JAX random
 from jax.scipy.stats import multivariate_normal
 
+from nfsampler.nfmodel.utils import sample_nf
 from flax import linen as nn           # The Linen API
 from flax.training import train_state  # Useful dataclass to keep train state
 import optax                           # Optimizers
@@ -18,6 +19,8 @@ Training a masked autoregressive flow to fit the dual moons dataset.
 
 model = RealNVP(10, 2, 64, 1)
 data = make_moons(n_samples=10000, noise=0.05)
+mean = jnp.mean(data[0], axis=0)[None,:]
+cov = jnp.cov(data[0].T)[None,:]
 key1, rng, init_rng = jax.random.split(jax.random.PRNGKey(0),3)
 
 def create_train_state(rng, learning_rate, momentum):
@@ -30,14 +33,13 @@ learning_rate = 0.01
 momentum = 0.9
 
 state = create_train_state(init_rng, learning_rate, momentum)
-
+variables = {'base_mean':mean, 'base_cov':cov}
+# variables = model.init(rng, jnp.ones((1,2)))['variables']
+# variables = {'base_mean':variables['base_mean'], 'base_cov':variables['base_cov'][None,:]}
 @jax.jit
 def train_step(state, batch):
     def loss(params):
-        y, log_det = model.apply({'params': params},batch)
-        mean = jnp.zeros((batch.shape[0],2))
-        cov = jnp.repeat(jnp.eye(2)[None,:],batch.shape[0],axis=0)
-        log_det = log_det + multivariate_normal.logpdf(y,mean,cov)
+        log_det = model.apply({'params': params,'variables': variables}, batch, method=model.log_prob)
         return -jnp.mean(log_det)
     grad_fn = jax.value_and_grad(loss)
     value, grad = grad_fn(state.params)
@@ -46,10 +48,7 @@ def train_step(state, batch):
 
 @jax.jit
 def eval_step(params, batch):
-    y, log_det = model.apply({'params': params},batch)
-    mean = jnp.zeros((batch.shape[0],2))
-    cov = jnp.repeat(jnp.eye(2)[None,:],batch.shape[0],axis=0)
-    log_det = log_det + multivariate_normal.logpdf(y,mean,cov)
+    log_det = model.apply({'params': params,'variables': variables}, batch, method=model.log_prob)
     return -jnp.mean(log_det)
 
 def train_epoch(state, train_ds, batch_size, epoch, rng):
@@ -66,7 +65,7 @@ def train_epoch(state, train_ds, batch_size, epoch, rng):
 
   return state
 
-num_epochs = 3000
+num_epochs = 1000
 batch_size = 10000
 
 for epoch in range(1, num_epochs + 1):
@@ -77,13 +76,13 @@ for epoch in range(1, num_epochs + 1):
     state = train_epoch(state, data[0], batch_size, epoch, input_rng)
     print('Loss: %.3f' % eval_step(state.params, data[0]))
 
-mean = jnp.zeros((batch_size,2))
-cov = jnp.repeat(jnp.eye(2)[None,:],batch_size,axis=0)
-gaussian = random.multivariate_normal(key1, mean, cov)
-samples = model.apply({'params': state.params},gaussian,method=model.inverse)
+
+rng_key_nf = jax.random.PRNGKey(124098)
+nf_samples = sample_nf(model, state.params, variables, rng_key_nf, batch_size)
+
 
 import matplotlib.pyplot as plt
 plt.figure(figsize=(10,10))
 plt.scatter(data[0][:,0], data[0][:,1], s=0.1, c='r',label='data')
-plt.scatter(samples[0][:,0], samples[0][:,1], s=0.1, c='b',label='NF') # x-y is flipped in this configuration
+plt.scatter(nf_samples[1][:,0], nf_samples[1][:,1], s=0.1, c='b',label='NF') # x-y is flipped in this configuration
 plt.show()
