@@ -66,23 +66,22 @@ def mala_sampler(rng_key, n_steps, logpdf, d_logpdf, initial_position, dt=1e-5):
         new_position, new_log_prob, do_accept = mala_kernel(key, logpdf,
                                                                d_logpdf,
                                                                positions[i-1],
-                                                               log_prob[i-1],
+                                                               log_prob,
                                                                dt)
         positions = positions.at[i].set(new_position)
-        log_prob = log_prob.at[i].set(new_log_prob)
+        
         acceptance = acceptance.at[i].set(do_accept)
-        return (key, positions, log_prob, acceptance)
+        return (key, positions, new_log_prob, acceptance)
 
 
     logp = logpdf(initial_position)
      # local sampler are vmapped outside, so the chain dimension is 1
     acceptance = jnp.zeros((n_steps,))
     all_positions = jnp.zeros((n_steps,)+initial_position.shape) + initial_position
-    all_logp = jnp.zeros((n_steps,)) + logp
-    initial_state = (rng_key,all_positions, all_logp, acceptance)
-    rng_key, all_positions, all_logp, acceptance = jax.lax.fori_loop(1, n_steps, 
+    initial_state = (rng_key,all_positions, logp, acceptance)
+    rng_key, all_positions, log_prob, acceptance = jax.lax.fori_loop(1, n_steps, 
                                                    mh_update_sol2, 
                                                    initial_state)
     
     
-    return rng_key, all_positions, all_logp, acceptance
+    return rng_key, all_positions, log_prob, acceptance
