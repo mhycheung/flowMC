@@ -78,15 +78,15 @@ n_dim = 9
 n_chains = 50
 
 ## long run
+# n_loop = 1
+# n_local_steps = 25 
+# n_global_steps = 1
+# num_epochs = 1
+## short run
 n_loop = 1
-n_local_steps = 25 
+n_local_steps = 1
 n_global_steps = 1
 num_epochs = 1
-## short run
-# n_loop = 5
-# n_local_steps = 10
-# n_global_steps = 5
-# num_epochs = 5
 
 learning_rate = 0.01
 momentum = 0.9
@@ -100,19 +100,19 @@ print("Initializing MCMC model and normalizing flow model.")
 
 # initial_position = jax.random.normal(rng_key_set[0],shape=(n_chains,n_dim)) #(n_chains, n_dim)
 
-kepler_params_ini = sample_prior(rng_key_set[0], n_chains,
-                                 **prior_kwargs)
+prior_samples = sample_prior(rng_key_set[0], n_chains,
+                                 **prior_kwargs).T
 # neg_logp_and_grad = jax.jit(jax.value_and_grad(lambda p: -log_posterior(p)))
 # optimized = []
 # for i in tqdm.tqdm(range(n_chains)):
-#     soln = minimize(neg_logp_and_grad, kepler_params_ini.T[i].T, jac=True)
+#     soln = minimize(neg_logp_and_grad, prior_samples[i].T, jac=True)
 #     optimized.append(jnp.asarray(get_kepler_params_and_log_jac(soln.x)[0]))
 
 # initial_position = jnp.stack(optimized) #(n_chains, n_dim)
 # #planting initial position
 # print('planting initial position')
 # inital_position = initial_position.at[0,:].set(true_params)
-initial_position = kepler_params_ini.T
+initial_position = prior_samples.T
 
 mean = initial_position.mean(0)
 init_centered = (initial_position - mean)
@@ -164,7 +164,7 @@ results = {
     'nf_samples_': nf_samples_,
     # 'nf_model': nf_sampler.nf_model,
     # 'nf_model_params': nf_sampler.state.params,
-    'prior_samples': kepler_params_ini,
+    'prior_samples': prior_samples,
     'optimized_init': initial_position,
     'config': config,
     'true_params': true_params,
