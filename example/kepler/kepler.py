@@ -112,7 +112,7 @@ prior_samples = sample_prior(rng_key_set[0], n_chains,
 # #planting initial position
 # print('planting initial position')
 # inital_position = initial_position.at[0,:].set(true_params)
-initial_position = prior_samples.T
+initial_position = prior_samples
 
 mean = initial_position.mean(0)
 init_centered = (initial_position - mean)

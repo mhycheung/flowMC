@@ -7,6 +7,7 @@ from flowMC.sampler.NF_proposal import nf_metropolis_sampler
 from flax.training import train_state  # Useful dataclass to keep train state
 import optax          
                  # Optimizers
+
 class Sampler(object):
     """
     Sampler class that host configuration parameters, NF model, and local sampler
@@ -19,8 +20,6 @@ class Sampler(object):
         likelihood (function): Likelihood function.
         d_likelihood (Device Array): Derivative of the likelihood function.
     """
-
-
 
     def __init__(self, n_dim: int, rng_key_set, nf_model, local_sampler,
                 likelihood, 
