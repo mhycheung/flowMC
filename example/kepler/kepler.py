@@ -78,15 +78,15 @@ n_dim = 9
 n_chains = 50
 
 ## long run
+n_loop = 20
+n_local_steps = 25 
+n_global_steps = 5
+num_epochs = 5
+## short run
 # n_loop = 1
-# n_local_steps = 25 
+# n_local_steps = 1
 # n_global_steps = 1
 # num_epochs = 1
-## short run
-n_loop = 1
-n_local_steps = 1
-n_global_steps = 1
-num_epochs = 1
 
 learning_rate = 0.01
 momentum = 0.9
@@ -143,8 +143,10 @@ nf_sampler = Sampler(n_dim, rng_key_set, model, run_mala,
 print("Sampling")
 
 start = time.time()
-_ = nf_sampler.sample(initial_position)
-chains, nf_samples, local_accs, global_accs, loss_vals = _
+nf_sampler.sample(initial_position)
+
+chains, log_prob, local_accs, global_accs, loss_vals = nf_sampler.get_sampler_state()
+nf_samples = nf_sampler.sample_flow()
 
 key, subkey = jax.random.split(rng_key_set[-1])
 n_samples = 100
