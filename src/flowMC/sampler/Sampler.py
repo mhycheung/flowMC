@@ -122,13 +122,15 @@ class Sampler(object):
             rng_keys_mcmc, positions, log_prob, local_acceptance = self.local_sampler(
                 rng_keys_mcmc, self.n_local_steps, self.likelihood, self.d_likelihood, initial_position, self.stepsize
                 )
-
+        
+        print('Finished local sampler')
         log_prob_output = np.copy(log_prob)
         flat_chain = positions.reshape(-1, self.n_dim)
         if self.use_global == True:
             rng_keys_nf, state, loss_values = train_flow(rng_keys_nf, self.nf_model, state, flat_chain,
                                             self.n_epochs, self.batch_size)
             likelihood_vec = jax.vmap(self.likelihood)
+            print('Finished training normalizing flow')
             rng_keys_nf, nf_chain, log_prob, log_prob_nf, global_acceptance = nf_metropolis_sampler(
                 rng_keys_nf, self.n_global_steps, self.nf_model, state.params , likelihood_vec,
                 positions[:,-1]
@@ -155,7 +157,7 @@ class Sampler(object):
         local_accs = jnp.stack(self.local_accs, axis=1).reshape(chains.shape[0], -1)
         if self.use_global == True:
             global_accs = jnp.stack(self.global_accs, axis=1).reshape(chains.shape[0], -1)
-            loss_vals = jnp.stack(self.loss_vals, axis=1).reshape(self.n_loop, self.n_epochs)
+            loss_vals = jnp.stack(self.loss_vals, axis=0)
             return chains, log_prob, local_accs, global_accs, loss_vals
         else:
             return chains, log_prob, local_accs, jnp.zeros(0), jnp.zeros(0)
