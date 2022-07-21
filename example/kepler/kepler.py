@@ -14,6 +14,7 @@ import corner
 import tqdm
 import time
 import pickle
+import os
 
 from flowMC.nfmodel.realNVP import RealNVP
 from flowMC.sampler.MALA import mala_sampler
@@ -23,6 +24,13 @@ from flowMC.utils.PRNG_keys import initialize_rng_keys
 
 from utils import rv_model, log_likelihood, log_prior, sample_prior, get_kepler_params_and_log_jac
 from plot import draw_corner, draw_kepler_results
+
+if os.path.isdir('/mnt/ceph/users/mgabrie/'):
+    ceph_home = '/mnt/ceph/users/mgabrie/nfsampler/'
+elif os.path.isdir('/Users/marylou/Dropbox/Postdoc/Experiments/ceph/nfsampler/'):
+    ceph_home = '/Users/marylou/Dropbox/Postdoc/Experiments/ceph/nfsampler/'
+else:
+    raise RuntimeError('Data path not understood')
 
 jax.config.update("jax_enable_x64", True)
 
@@ -55,7 +63,8 @@ prior_kwargs = { ## flatter
 
 n_obs = 50
 
-random = np.random.default_rng(12345)
+# random = np.random.default_rng(12345)
+random = np.random.default_rng(1245)
 t = np.sort(random.uniform(0, 100, n_obs))
 rv_err = 0.3
 sigma2 = rv_err ** 2 + jnp.exp(2 * true_params[1])
@@ -78,20 +87,30 @@ n_dim = 9
 n_chains = 50
 
 ## long run
-n_loop = 20
-n_local_steps = 25 
-n_global_steps = 5
-num_epochs = 5
-## short run
+# n_loop = 20
+# n_local_steps = 25 
+# n_global_steps = 5
+# num_epochs = 10
+## local long run + long training 
+n_loop = 1
+n_local_steps = 500
+n_global_steps = 1
+num_epochs = 500
+#local long run
 # n_loop = 1
+# n_local_steps = int((25+5) * 20)
+# n_global_steps = 5
+# num_epochs = 1
+## short run
+# n_loop = 2
 # n_local_steps = 1
 # n_global_steps = 1
-# num_epochs = 1
+# num_epochs = 3
 
 learning_rate = 0.01
 momentum = 0.9
 batch_size = n_chains
-stepsize = 1e-5
+stepsize = 1e-4
 
 print("Preparing RNG keys")
 rng_key_set = initialize_rng_keys(n_chains,seed=42)
@@ -137,7 +156,8 @@ nf_sampler = Sampler(n_dim, rng_key_set, model, run_mala,
                     learning_rate=learning_rate,
                     momentum=momentum,
                     batch_size=batch_size,
-                    stepsize=stepsize)
+                    stepsize=stepsize,
+                    use_global=True if n_global_steps > 0 else False)
 
 
 print("Sampling")
@@ -181,7 +201,7 @@ results = {
 }
 
 random_id = np.random.randint(10000)
-with open('results_{:d}.pkl'.format(random_id), 'wb') as f:
+with open(ceph_home + 'results_{:d}.pkl'.format(random_id), 'wb') as f:
     pickle.dump(results, f)
 print("Saved with random id: {:d}".format(random_id))
 
@@ -193,6 +213,7 @@ labels = ['v0', 'log_s2', 'log_period', 'log_k', 'sin_phi_',
                             'cos_phi_', 'ecc_', 'sin_w_', 'cos_w_']
 fig_corner = draw_corner(chains, true_params, labels, labelpad=0.3)
 
+loss_vals.reshape(-1)
 fig_results = draw_kepler_results(chains, true_params, t, rv_obs, loss_vals,
                                   local_accs, global_accs, rv_model, 
                                   log_posterior, get_kepler_params_and_log_jac)
