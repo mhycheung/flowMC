@@ -24,15 +24,23 @@ Our package is still in development stage, so it has not reached the official Py
 To install our package, run the following command:
 
 ```
-pip install -i https://test.pypi.org/simple/ FlowMC
+pip install FlowMC
 ```
 
 ## Requirements
+
+Here is a list of packages we use in the main library
 
     * Python 3.8+
     * Jax
     * Jaxlib
     * Flax
+
+To visualize the inference results in the examples, we requrie the following packages in addtion to the above:
+
+    * matplotlib
+    * corner
+    * arviz
 
 
 
