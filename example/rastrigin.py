@@ -9,29 +9,25 @@ import numpy as np
 
 from flowMC.nfmodel.utils import *
 
+def rastrigin(x):
+    return -(10 * x.size + jnp.sum(x**2 - 10 * jnp.cos(2 * jnp.pi * x)))
 
-def dual_moon_pe(x):
-    """
-    Term 2 and 3 separate the distribution and smear it along the first and second dimension
-    """
-    term1 = 0.5 * ((jnp.linalg.norm(x) - 2) / 0.1) ** 2
-    term2 = -0.5 * ((x[:1] + jnp.array([-3.0, 3.0])) / 0.8) ** 2
-    term3 = -0.5 * ((x[1:2] + jnp.array([-3.0, 3.0])) / 0.6) ** 2
-    return -(term1 - logsumexp(term2) - logsumexp(term3))
+x_axis = jnp.linspace(-5,5,100)
+
+grid = jnp.meshgrid(x_axis, x_axis)
+grid = jnp.array(grid)
+
+values = jax.vmap(rastrigin)(grid.reshape(2,-1).T).reshape(100,100)
 
 
-d_dual_moon = jax.grad(dual_moon_pe)
-
-### Demo config
-
-n_dim = 5
-n_chains = 10
+n_dim = 2
+n_chains = 100
 n_loop = 5
 n_local_steps = 100
 n_global_steps = 100
 learning_rate = 0.1
 momentum = 0.9
-num_epochs = 5
+num_epochs = 50
 batch_size = 50
 stepsize = 0.01
 
@@ -49,8 +45,8 @@ run_mcmc = jax.vmap(mala_sampler, in_axes=(0, None, None, None, 0, None), out_ax
 print("Initializing sampler class")
 
 nf_sampler = Sampler(n_dim, rng_key_set, model, run_mcmc,
-                    dual_moon_pe,
-                    d_likelihood=d_dual_moon,
+                    jax.jit(rastrigin),
+                    d_likelihood=jax.jit(jax.grad(rastrigin)),
                     n_loop=n_loop,
                     n_local_steps=n_local_steps,
                     n_global_steps=n_global_steps,
@@ -69,6 +65,7 @@ nf_sampler.sample(initial_position)
 
 chains, log_prob, local_accs, global_accs, loss_vals = nf_sampler.get_sampler_state()
 nf_samples = nf_sampler.sample_flow()
+
 
 print(
     "chains shape: ",
