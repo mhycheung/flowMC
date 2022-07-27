@@ -32,6 +32,21 @@ def draw_corner(chains, true_val, labels, n_last_spls=1000, labelpad=10.0,
 
     return figure
 
+def draw_corner_nf(samples, true_val, labels, labelpad=10.0,
+                frac_bounds=0.95):
+    plt.rcParams.update({'font.size': 8})
+    n_dim = samples.shape[-1]
+    figure = corner.corner(samples,
+                    labels=labels,
+                    # var_names=var_names,
+                    truths=true_val,
+                    range=[frac_bounds] * n_dim,
+                    labelpad=labelpad,
+                    truth_color='g')
+    figure.set_size_inches(7, 7)
+    figure.suptitle('Visualize NF samples')
+    return figure
+
 
 def draw_kepler_results(chains, true_params, t, rv_obs, loss_vals, local_accs,
                         global_accs, rv_model, log_posterior, 

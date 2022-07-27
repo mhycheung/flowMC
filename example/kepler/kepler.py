@@ -1,3 +1,4 @@
+from mimetypes import init
 import matplotlib as mpl
 label_size = 8
 mpl.rcParams['xtick.labelsize'] = label_size 
@@ -23,7 +24,7 @@ from flowMC.sampler.Sampler import Sampler
 from flowMC.utils.PRNG_keys import initialize_rng_keys
 
 from utils import rv_model, log_likelihood, log_prior, sample_prior, get_kepler_params_and_log_jac
-from plot import draw_corner, draw_kepler_results
+from plot import draw_corner, draw_kepler_results, draw_corner_nf
 
 if os.path.isdir('/mnt/ceph/users/mgabrie/'):
     ceph_home = '/mnt/ceph/users/mgabrie/nfsampler/'
@@ -38,9 +39,9 @@ jax.config.update("jax_enable_x64", True)
 
 ## Generate probelm
 true_params = jnp.array([
-    12.0, # v0
+    2.0, # v0
     np.log(0.5), # log_s2
-    np.log(14.5), # log_P
+    np.log(14.5), # log_P 
     np.log(2.3), # log_k
     np.sin(1.5), # phi
     np.cos(1.5),
@@ -48,22 +49,22 @@ true_params = jnp.array([
     np.sin(-0.7), # w
     np.cos(-0.7)
 ])
-# prior_kwargs = { ## peaked
-#     'ecc_alpha': 2, 'ecc_beta': 2,
-#     'log_k_mean': 1, 'log_k_var': 1,
-#     'v0_mean': 10, 'v0_var': 2,
-#     'log_period_mean': 2.5, 'log_period_var': 0.5,
-#     'log_s2_mean': -0.5, 'log_s2_var': 0.1,
-# }
-prior_kwargs = { ## flatter
+prior_kwargs = { ## peaked
     'ecc_alpha': 2, 'ecc_beta': 2,
-    'log_k_mean': 1, 'log_k_var': 5,
-    'v0_mean': 10, 'v0_var': 10,
-    'log_period_mean': 1, 'log_period_var': 5,
+    'log_k_mean': 1, 'log_k_var': 1,
+    'v0_mean': 10, 'v0_var': 2,
+    'log_period_mean': 2.5, 'log_period_var': 2,
     'log_s2_mean': -0.5, 'log_s2_var': 0.1,
 }
+# prior_kwargs = { ## flatter
+#     'ecc_alpha': 2, 'ecc_beta': 2,
+#     'log_k_mean': 1, 'log_k_var': 5,
+#     'v0_mean': 0, 'v0_var': 10,
+#     'log_period_mean': 1, 'log_period_var': 5,
+#     'log_s2_mean': -0.5, 'log_s2_var': 0.1,
+# }
 
-n_obs = 50
+n_obs = 10
 
 # random = np.random.default_rng(12345)
 random = np.random.default_rng(1245)
@@ -94,20 +95,16 @@ n_chains = 50
 # n_global_steps = 5
 # num_epochs = 10
 ## local long run + long training 
-n_loop = 1
-n_local_steps = 500
-n_global_steps = 1
+n_loop = 10
+n_local_steps = 300
+n_global_steps = 10
 num_epochs = 50
-#local long run
+
 # n_loop = 1
-# n_local_steps = int((25+5) * 20)
-# n_global_steps = 5
-# num_epochs = 1
-## short run
-# n_loop = 2
-# n_local_steps = 1
-# n_global_steps = 1
-# num_epochs = 3
+# n_local_steps = 3000
+# n_global_steps = 0
+# num_epochs = 50
+
 
 learning_rate = 0.01
 momentum = 0.9
@@ -123,17 +120,19 @@ print("Initializing MCMC model and normalizing flow model.")
 
 prior_samples = sample_prior(rng_key_set[0], n_chains,
                                  **prior_kwargs).T
-# neg_logp_and_grad = jax.jit(jax.value_and_grad(lambda p: -log_posterior(p)))
-# optimized = []
-# for i in tqdm.tqdm(range(n_chains)):
-#     soln = minimize(neg_logp_and_grad, prior_samples[i].T, jac=True)
-#     optimized.append(jnp.asarray(get_kepler_params_and_log_jac(soln.x)[0]))
+neg_logp_and_grad = jax.jit(jax.value_and_grad(lambda p: -log_posterior(p)))
+optimized = []
+for i in tqdm.tqdm(range(n_chains)):
+    soln = minimize(neg_logp_and_grad, prior_samples[i].T, jac=True)
+    optimized.append(jnp.asarray(get_kepler_params_and_log_jac(soln.x)[0]))
 
-# initial_position = jnp.stack(optimized) #(n_chains, n_dim)
+initial_position = jnp.stack(optimized) #(n_chains, n_dim)
 # #planting initial position
 # print('planting initial position')
-# inital_position = initial_position.at[0,:].set(true_params)
-initial_position = prior_samples
+# initial_position = prior_samples
+# for i in range(n_chains):
+#     initial_position = initial_position.at[i,:].set(true_params)
+
 
 mean = initial_position.mean(0)
 init_centered = (initial_position - mean)
@@ -171,7 +170,7 @@ chains, log_prob, local_accs, global_accs, loss_vals = nf_sampler.get_sampler_st
 nf_samples = nf_sampler.sample_flow()
 
 key, subkey = jax.random.split(rng_key_set[-1])
-n_samples = 100
+n_samples = 5000
 nf_samples_ = nf_sampler.nf_model.apply({'params': nf_sampler.state.params},
                                            subkey, n_samples,
                                            nf_sampler.state.params,
@@ -180,7 +179,7 @@ nf_samples_ = nf_sampler.nf_model.apply({'params': nf_sampler.state.params},
 print('Elapsed: ', time.time()-start, 's')
 
 chains = np.array(chains)
-nf_samples = np.array(nf_samples)
+nf_samples_ = np.array(nf_samples_)
 
 results = {
     'chains': chains,
@@ -214,13 +213,18 @@ print("Make plots")
 labels = ['v0', 'log_s2', 'log_period', 'log_k', 'sin_phi_',
                             'cos_phi_', 'ecc_', 'sin_w_', 'cos_w_']
 fig_corner = draw_corner(chains, true_params, labels, labelpad=0.3)
+plt.savefig('blu_kepler_corner.png')
 
-loss_vals.reshape(-1)
+# Make the base corner plot
+fig_corner = draw_corner_nf(nf_samples_, true_params, labels, labelpad=0.3)
+plt.savefig('blu_kepler_nfsamples_corner.png')
+
+loss_vals = loss_vals.reshape(-1)
 fig_results = draw_kepler_results(chains, true_params, t, rv_obs, loss_vals,
                                   local_accs, global_accs, rv_model, 
                                   log_posterior, get_kepler_params_and_log_jac)
 
-
+plt.savefig('blu_kepler_results.png')
 
 
 # value1 = true_params
