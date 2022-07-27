@@ -122,8 +122,7 @@ class Sampler(object):
             rng_keys_mcmc, positions, log_prob, local_acceptance = self.local_sampler(
                 rng_keys_mcmc, self.n_local_steps, self.likelihood, self.d_likelihood, initial_position, self.stepsize
                 )
-        
-        print('Finished local sampler')
+
         log_prob_output = np.copy(log_prob)
         flat_chain = positions.reshape(-1, self.n_dim)
         if self.use_global == True:
@@ -152,15 +151,14 @@ class Sampler(object):
 
 
     def get_sampler_state(self):
-        chains = jnp.concatenate(self.chains, axis=1)
-        log_prob = jnp.concatenate(self.log_prob, axis=1)
-        local_accs = jnp.stack(self.local_accs, axis=1).reshape(chains.shape[0], -1)
-        if self.use_global == True:
-            global_accs = jnp.stack(self.global_accs, axis=1).reshape(chains.shape[0], -1)
-            loss_vals = jnp.stack(self.loss_vals, axis=0)
-            return chains, log_prob, local_accs, global_accs, loss_vals
-        else:
-            return chains, log_prob, local_accs, jnp.zeros(0), jnp.zeros(0)
+        return self.chains, self.log_prob, self.local_accs, self.global_accs, self.loss_vals
+        
+        # if self.use_global == True:
+        #     global_accs = jnp.stack(self.global_accs, axis=1).reshape(chains.shape[0], -1)
+        #     loss_vals = jnp.stack(self.loss_vals, axis=0)
+        #     return chains, log_prob, local_accs, global_accs, loss_vals
+        # else:
+        #     return chains, log_prob, local_accs, jnp.zeros(0), jnp.zeros(0)
 
     def sample_flow(self):
         nf_samples = sample_nf(self.nf_model, self.state.params, self.rng_keys_nf, self.n_nf_samples)

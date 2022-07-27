@@ -29,6 +29,8 @@ if os.path.isdir('/mnt/ceph/users/mgabrie/'):
     ceph_home = '/mnt/ceph/users/mgabrie/nfsampler/'
 elif os.path.isdir('/Users/marylou/Dropbox/Postdoc/Experiments/ceph/nfsampler/'):
     ceph_home = '/Users/marylou/Dropbox/Postdoc/Experiments/ceph/nfsampler/'
+elif os.path.isdir('/mnt/beegfs/workdir/marylou.gabrie'):
+    ceph_home = '/mnt/beegfs/workdir/marylou.gabrie/flowmc/'
 else:
     raise RuntimeError('Data path not understood')
 
@@ -95,7 +97,7 @@ n_chains = 50
 n_loop = 1
 n_local_steps = 500
 n_global_steps = 1
-num_epochs = 500
+num_epochs = 50
 #local long run
 # n_loop = 1
 # n_local_steps = int((25+5) * 20)
@@ -201,7 +203,7 @@ results = {
 }
 
 random_id = np.random.randint(10000)
-with open(ceph_home + 'results_{:d}.pkl'.format(random_id), 'wb') as f:
+with open(ceph_home + 'kepler/results_{:d}.pkl'.format(random_id), 'wb') as f:
     pickle.dump(results, f)
 print("Saved with random id: {:d}".format(random_id))
 

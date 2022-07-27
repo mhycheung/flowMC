@@ -26,9 +26,9 @@ d_dual_moon = jax.grad(dual_moon_pe)
 
 n_dim = 5
 n_chains = 10
-n_loop = 5
+n_loop = 3
 n_local_steps = 100
-n_global_steps = 100
+n_global_steps = 20
 learning_rate = 0.1
 momentum = 0.9
 num_epochs = 5
@@ -81,7 +81,7 @@ print(
 
 chains = np.array(chains)
 nf_samples = np.array(nf_samples[1])
-loss_vals = np.array(loss_vals)
+loss_vals = np.array(loss_vals.flatten())
 
 import corner
 import matplotlib.pyplot as plt
